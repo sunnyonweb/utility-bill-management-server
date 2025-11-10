@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
+
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -13,6 +15,25 @@ let db;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+
+const verifyToken = (req, res, next) => {
+    const authorizationHeader = req.headers.authorization;
+    if (!authorizationHeader) {
+        return res.status(401).send({ message: 'Unauthorized access: No token provided' });
+    }
+    const token = authorizationHeader.split(' ')[1];
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            console.error('Token verification error:', err);
+            return res.status(401).send({ message: 'Unauthorized access: Invalid token' });
+        }
+        req.decoded = decoded; 
+        next();
+    });
+};
+
 
 
 // Function to connect to MongoDB
@@ -43,6 +64,7 @@ async function run() {
     const db = client.db('utility_bill');
     const billsCollection = db.collection('bills');
     const myBillsCollection = db.collection('myBills');
+    const usersCollection = db.collection('users');
 
 
     // get opparation
@@ -178,6 +200,33 @@ async function run() {
           res.status(400).send({ message: 'Invalid ID format.' });
       }
     });
+
+
+    // ... inside run() after all your existing endpoints
+
+    // 9. POST Save/Register a new user (Email/Password or Google Sign-In)
+    app.post('/users', async (req, res) => {
+        const user = req.body;
+        // Check if the user already exists by email
+        const existingUser = await usersCollection.findOne({ email: user.email });
+        if (existingUser) {
+            return res.status(200).send({ message: 'User already exists', insertedId: existingUser._id });
+        }
+        
+        const result = await usersCollection.insertOne(user);
+        res.status(201).send({ ...result, insertedId: result.insertedId });
+    });
+
+    // 10. POST Create a JWT Token (This is typically done after successful login/registration)
+    app.post('/jwt', async (req, res) => {
+        const user = req.body;
+        // You'll need to install and import 'jsonwebtoken' for this to work.
+        // const jwt = require('jsonwebtoken'); <-- Add this import at the top of your file
+        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+        res.send({ token });
+    });
+
+// ... Send a ping to confirm a successful connection
 
 
     // Send a ping to confirm a successful connection
