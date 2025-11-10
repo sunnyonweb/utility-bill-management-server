@@ -5,18 +5,14 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 
-
 const app = express();
 const port = process.env.PORT || 5000;
-
-// Global variable to store the database instance
-let db;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-
+// --- JWT Verification Middleware ---
 const verifyToken = (req, res, next) => {
     const authorizationHeader = req.headers.authorization;
     if (!authorizationHeader) {
@@ -34,207 +30,201 @@ const verifyToken = (req, res, next) => {
     });
 };
 
-
-
 // Function to connect to MongoDB
-
 const uri = "mongodb+srv://utility-bill-management:vpvCjaUq3ipxlTRu@cluster0.6ve5zji.mongodb.net/?appName=Cluster0";
 
 const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
+    serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+    }
 });
-
-
-
 
 // Basic Test Route
 app.get('/', (req, res) => {
-  res.send('Utility Bill Management Server is running!');
+    res.send('Utility Bill Management Server is running!');
 });
 
 async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // collection
-    const db = client.db('utility_bill');
-    const billsCollection = db.collection('bills');
-    const myBillsCollection = db.collection('myBills');
-    const usersCollection = db.collection('users');
+    try {
+        await client.connect();
+        const db = client.db('utility_bill');
+        const billsCollection = db.collection('bills');
+        const myBillsCollection = db.collection('myBills');
+        const usersCollection = db.collection('users');
 
+        // --- PUBLIC BILLS ENDPOINTS ---
 
-    // get opparation
+        app.get('/bills/recent', async (req, res) => {
+            try {
+                const cursor = billsCollection.find({}).sort({ date: -1 }).limit(6); 
+                const result = await cursor.toArray();
+                res.status(200).send(result);
+            } catch (error) {
+                console.error('Error fetching recent bills:', error);
+                res.status(500).send({ message: 'Failed to fetch recent bills.' });
+            }
+        });
 
-    app.get('/bills/recent', async (req, res) => {
-      try {
-        const cursor = billsCollection.find({})
-          .sort({ date: -1 }) // Sort by date descending
-          .limit(6); // Limit to 6 documents as required
+        app.get('/bills', async (req, res) => {
+            const { category } = req.query;
+            const query = category ? { category: category } : {};
 
-        const result = await cursor.toArray();
-        res.status(200).send(result);
-      } catch (error) {
-        console.error('Error fetching recent bills:', error);
-        res.status(500).send({ message: 'Failed to fetch recent bills.' });
-      }
-    });
+            try {
+                const cursor = billsCollection.find(query);
+                const result = await cursor.toArray();
+                res.status(200).send(result);
+            } catch (error) {
+                console.error('Error fetching bills:', error);
+                res.status(500).send({ message: 'Failed to fetch bills.' });
+            }
+        });
 
-    // 2. GET
-    // category
-    app.get('/bills', async (req, res) => {
-      const { category } = req.query;
-      const query = {};
+        app.get('/bills/:id', async (req, res) => {
+            const id = req.params.id;
+            try {
+                const query = { _id: new ObjectId(id) };
+                const result = await billsCollection.findOne(query);
 
-      if (category) {
-        // Filter by category 
-        query.category = category;
-      }
+                if (!result) return res.status(404).send({ message: 'Bill not found.' });
+                res.status(200).send(result);
+            } catch (error) {
+                res.status(400).send({ message: 'Invalid Bill ID format.' });
+            }
+        });
 
-      try {
-        const cursor = billsCollection.find(query);
-        const result = await cursor.toArray();
-        res.status(200).send(result);
-      } catch (error) {
-        console.error('Error fetching bills:', error);
-        res.status(500).send({ message: 'Failed to fetch bills.' });
-      }
-    });
-
-    // 3. GET single bill by ID
-    app.get('/bills/:id', async (req, res) => {
-      const id = req.params.id;
-      try {
-        const query = { _id: new ObjectId(id) };
-        const result = await billsCollection.findOne(query);
-
-        if (!result) return res.status(404).send({ message: 'Bill not found.' });
-        res.status(200).send(result);
-      } catch (error) {
-        // This catches invalid ObjectId formats
-        res.status(400).send({ message: 'Invalid Bill ID format.' });
-      }
-    });
-
-    
-    // 4. POST Add a new bill 
-    app.post('/bills', async (req, res) => {
-      const newBill = req.body;
-      
-      if (newBill.date) {
-          newBill.date = new Date(newBill.date);
-      }
-      const result = await billsCollection.insertOne(newBill);
-      res.status(201).send({ ...result, insertedId: result.insertedId });
-    });
-
-    // 5. POST Save a new paid bill record
-    app.post('/my-bills', async (req, res) => {
-      const paidBill = req.body;
-      
-      // Validation check for mandatory fields
-      if (!paidBill.email || !paidBill.billId || !paidBill.amount) {
-          return res.status(400).send({ message: 'Missing mandatory fields for payment.' });
-      }
-
-      // Convert billId string to ObjectId to reference the original bill
-      try {
-          paidBill.billId = new ObjectId(paidBill.billId);
-      } catch (e) {
-          return res.status(400).send({ message: 'Invalid Bill ID provided.' });
-      }
-      
-      const result = await myBillsCollection.insertOne(paidBill);
-      res.status(201).send({ ...result, insertedId: result.insertedId });
-    });
-
-    // 6. GET Get paid bills for a specific logged-in user
-    app.get('/my-bills/:email', async (req, res) => {
-      const userEmail = req.params.email;
-      const query = { email: userEmail };
-
-      try {
-        const cursor = myBillsCollection.find(query);
-        const result = await cursor.toArray();
-        res.status(200).send(result);
-      } catch (error) {
-        console.error('Error fetching paid bills for user:', error);
-        res.status(500).send({ message: 'Failed to fetch user paid bills.' });
-      }
-    });
-
-    // 7. PATCH Update a user's paid bill record
-    app.patch('/my-bills/:id', async (req, res) => {
-      const id = req.params.id;
-      const { amount, address, phone, date } = req.body;
-      
-      try {
-          const query = { _id: new ObjectId(id) };
-          const updateDoc = {
-              $set: { amount, address, phone, date: new Date(date) }
-          };
-          
-          const result = await myBillsCollection.updateOne(query, updateDoc);
-          if (result.matchedCount === 0) return res.status(404).send({ message: 'Paid bill record not found.' });
-
-          res.status(200).send({ message: 'Paid bill updated successfully.', modifiedCount: result.modifiedCount });
-      } catch (error) {
-          res.status(400).send({ message: 'Invalid ID or data provided.' });
-      }
-    });
-
-    // 8. DELETE Delete a user's paid bill record
-    app.delete('/my-bills/:id', async (req, res) => {
-      const id = req.params.id;
-      try {
-          const query = { _id: new ObjectId(id) };
-          const result = await myBillsCollection.deleteOne(query);
-
-          if (result.deletedCount === 0) return res.status(404).send({ message: 'Paid bill record not found.' });
-          
-          res.status(200).send({ message: 'Paid bill record deleted successfully.' });
-      } catch (error) {
-          res.status(400).send({ message: 'Invalid ID format.' });
-      }
-    });
-
-
-    // ... inside run() after all your existing endpoints
-
-    // 9. POST Save/Register a new user (Email/Password or Google Sign-In)
-    app.post('/users', async (req, res) => {
-        const user = req.body;
-        // Check if the user already exists by email
-        const existingUser = await usersCollection.findOne({ email: user.email });
-        if (existingUser) {
-            return res.status(200).send({ message: 'User already exists', insertedId: existingUser._id });
-        }
+        app.post('/bills', async (req, res) => {
+            const newBill = req.body;
+            
+            if (newBill.date) {
+                newBill.date = new Date(newBill.date);
+            }
+            const result = await billsCollection.insertOne(newBill);
+            res.status(201).send({ ...result, insertedId: result.insertedId });
+        });
         
-        const result = await usersCollection.insertOne(user);
-        res.status(201).send({ ...result, insertedId: result.insertedId });
-    });
+        app.post('/my-bills', async (req, res) => {
+            const paidBill = req.body;
+            
+            if (!paidBill.email || !paidBill.billId || !paidBill.amount) {
+                return res.status(400).send({ message: 'Missing mandatory fields for payment.' });
+            }
 
-    // 10. POST Create a JWT Token (This is typically done after successful login/registration)
-    app.post('/jwt', async (req, res) => {
-        const user = req.body;
-        // You'll need to install and import 'jsonwebtoken' for this to work.
-        // const jwt = require('jsonwebtoken'); <-- Add this import at the top of your file
-        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-        res.send({ token });
-    });
+            try {
+                paidBill.billId = new ObjectId(paidBill.billId);
+            } catch (e) {
+                return res.status(400).send({ message: 'Invalid Bill ID provided.' });
+            }
+            
+            const result = await myBillsCollection.insertOne(paidBill);
+            res.status(201).send({ ...result, insertedId: result.insertedId });
+        });
 
-// ... Send a ping to confirm a successful connection
+        // --- PRIVATE MY BILLS ENDPOINTS (SECURED) ---
+        
+        app.get('/my-bills/:email', verifyToken, async (req, res) => {
+            const userEmail = req.params.email;
+            
+            if (userEmail !== req.decoded.email) {
+                return res.status(403).send({ message: 'Forbidden access: You can only view your own records.' });
+            }
 
+            const query = { email: userEmail };
 
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    
-  }
+            try {
+                const cursor = myBillsCollection.find(query);
+                const result = await cursor.toArray();
+                res.status(200).send(result);
+            } catch (error) {
+                console.error('Error fetching paid bills for user:', error);
+                res.status(500).send({ message: 'Failed to fetch user paid bills.' });
+            }
+        });
+
+        app.patch('/my-bills/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const { amount, address, phone, date } = req.body;
+            
+            try {
+                const query = { _id: new ObjectId(id) };
+                const existingBill = await myBillsCollection.findOne(query);
+                if (!existingBill) return res.status(404).send({ message: 'Paid bill record not found.' });
+                
+                if (existingBill.email !== req.decoded.email) {
+                    return res.status(403).send({ message: 'Forbidden access: You can only update your own records.' });
+                }
+
+                const updateDoc = {
+                    $set: { amount, address, phone, date: new Date(date) }
+                };
+                
+                const result = await myBillsCollection.updateOne(query, updateDoc);
+                
+                res.status(200).send({ message: 'Paid bill updated successfully.', modifiedCount: result.modifiedCount });
+            } catch (error) {
+                res.status(400).send({ message: 'Invalid ID or data provided.' });
+            }
+        });
+
+        app.delete('/my-bills/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            try {
+                const query = { _id: new ObjectId(id) };
+                const existingBill = await myBillsCollection.findOne(query);
+                if (!existingBill) return res.status(404).send({ message: 'Paid bill record not found.' });
+                
+                if (existingBill.email !== req.decoded.email) {
+                    return res.status(403).send({ message: 'Forbidden access: You can only delete your own records.' });
+                }
+
+                const result = await myBillsCollection.deleteOne(query);
+
+                res.status(200).send({ message: 'Paid bill record deleted successfully.' });
+            } catch (error) {
+                res.status(400).send({ message: 'Invalid ID format.' });
+            }
+        });
+
+        // --- AUTHENTICATION ENDPOINTS ---
+
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            const existingUser = await usersCollection.findOne({ email: user.email });
+            if (existingUser) {
+                return res.status(200).send({ message: 'User already exists', insertedId: existingUser._id });
+            }
+            
+            const result = await usersCollection.insertOne(user);
+            res.status(201).send({ ...result, insertedId: result.insertedId });
+        });
+
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            
+            try {
+                if (!user || !user.email) {
+                    return res.status(400).send({ message: 'Email required for JWT generation.' });
+                }
+                if (!process.env.ACCESS_TOKEN_SECRET) {
+                    console.error("FATAL: ACCESS_TOKEN_SECRET is not set in environment variables.");
+                    return res.status(500).send({ message: 'Server configuration error (JWT secret missing).' });
+                }
+                
+                const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+                res.send({ token });
+
+            } catch (error) {
+                console.error("JWT SIGNING FAILED (500 Error Cause):", error.message);
+                res.status(500).send({ message: 'Failed to generate token on server. Check server console.' });
+            }
+        });
+
+        await client.db("admin").command({ ping: 1 });
+        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    } finally {
+        
+    }
 }
 run().catch(console.dir);
 
