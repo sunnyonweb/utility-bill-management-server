@@ -89,7 +89,7 @@ async function run() {
             }
         });
 
-        // 3. GET /bills/:id (Single Bill Details)
+        // 3. GET /bills/:id 
         app.get('/bills/:id', async (req, res) => {
             const id = req.params.id;
             try {
@@ -102,10 +102,10 @@ async function run() {
             }
         });
         
-        // 4. POST /my-bills (Save Paid Bill Record)
+        // 4. POST /my-bills 
         app.post('/my-bills', async (req, res) => {
             const paidBill = req.body;
-            // NOTE: Add security check here if token is required for post
+            
             if (!paidBill.email || !paidBill.billId || !paidBill.amount) {
                 return res.status(400).send({ message: 'Missing mandatory fields for payment.' });
             }
@@ -118,7 +118,7 @@ async function run() {
             }
         });
 
-        // --- PRIVATE (SECURED) MY BILLS ENDPOINTS ---
+        
 
         // 5. GET /my-bills/:email (User's Paid Bills - SECURED)
         app.get('/my-bills/:email', verifyToken, async (req, res) => {
