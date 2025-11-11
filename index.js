@@ -49,7 +49,7 @@ const client = new MongoClient(uri, {
 });
 
 
-// --- ASYNCHRONOUS SERVER INITIALIZATION ---
+
 async function run() {
     try {
         // Connect the client to the server 
@@ -60,9 +60,9 @@ async function run() {
         const myBillsCollection = db.collection('myBills');
         const usersCollection = db.collection('users');
 
-        // --- PUBLIC BILLS ENDPOINTS ---
 
-        // 1. GET /bills/recent (Home Page Recent Bills)
+
+        // 1. GET /bills/recent 
         app.get('/bills/recent', async (req, res) => {
             try {
                 const cursor = billsCollection.find({}).sort({ date: -1 }).limit(6);
@@ -74,7 +74,7 @@ async function run() {
             }
         });
 
-        // 2. GET /bills (All Bills + Category Filter)
+        // 2. GET /bills 
         app.get('/bills', async (req, res) => {
             const { category } = req.query;
             const query = category ? { category: category } : {};
