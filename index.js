@@ -160,7 +160,7 @@ async function run() {
             }
         });
 
-        // 7. DELETE /my-bills/:id (Delete Paid Bill - SECURED)
+        // Delete Paid Bill - SECURED
         app.delete('/my-bills/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             try {
@@ -178,8 +178,8 @@ async function run() {
             }
         });
         
-        // 8. GET /my-bills/summary/:email (Calculate Total Paid Bills & Amount - SECURED)
-        // This addresses the "Total Bill Paid" requirement.
+        // Calculate Total Paid Bills & Amount - SECURED
+
         app.get('/my-bills/summary/:email', verifyToken, async (req, res) => {
             const userEmail = req.params.email;
         
@@ -199,7 +199,6 @@ async function run() {
                     }
                 ]).toArray();
         
-                // Send back totals, or zeros if no bills are found
                 if (result.length > 0) {
                     res.status(200).send(result[0]);
                 } else {
@@ -211,9 +210,9 @@ async function run() {
             }
         });
 
-        // --- AUTHENTICATION ENDPOINTS ---
+    
 
-        // 9. POST /users (Save/Register User for sync)
+        // 9. (Save/Register User )
         app.post('/users', async (req, res) => {
             const user = req.body;
             const existingUser = await usersCollection.findOne({ email: user.email });
@@ -225,7 +224,7 @@ async function run() {
             res.status(201).send({ ...result, insertedId: result.insertedId });
         });
 
-        // 10. POST /jwt (Token Generation)
+        // (Token Generation)
         app.post('/jwt', async (req, res) => {
             const user = req.body;
             try {
@@ -245,16 +244,12 @@ async function run() {
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
-        // You can remove this section if you want to keep the connection open 
-        // throughout the server's lifecycle, which is typical for Express apps.
-        // If you keep it, the connection will close when run() finishes.
-        // await client.close(); 
+        
     }
 }
 run().catch(console.dir);
 
 
-// --- SERVER EXECUTION ---
 
 app.get("/", (req, res) => {
     res.send("Utility Bill Management Server is running!");
