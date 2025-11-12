@@ -1,4 +1,4 @@
-// server/index.js
+
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -12,7 +12,7 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// --- JWT Verification Middleware ---
+
 const verifyToken = (req, res, next) => {
     const authorizationHeader = req.headers.authorization;
     if (!authorizationHeader) {
@@ -31,13 +31,13 @@ const verifyToken = (req, res, next) => {
 };
 
 // --- MongoDB Connection Setup ---
-// 🔑 UPDATED: Loading URI from the environment variable (DATABASE_URI)
+
 const uri = process.env.DATABASE_URI;
 
-// Check if URI is available
+
 if (!uri) {
     console.error("FATAL: DATABASE_URI is not defined in the environment/dotenv file.");
-    // Exit gracefully or continue, depending on deployment preference
+  
 }
 
 const client = new MongoClient(uri, {
