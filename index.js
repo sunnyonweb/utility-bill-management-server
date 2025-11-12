@@ -120,10 +120,10 @@ async function run() {
 
         
 
-        // 5. GET /my-bills/:email (User's Paid Bills - SECURED)
+        // 5. GET /my-bills/:email 
         app.get('/my-bills/:email', verifyToken, async (req, res) => {
             const userEmail = req.params.email;
-            // Security Check: Enforce that the token owner matches the request email
+            
             if (userEmail !== req.decoded.email) {
                 return res.status(403).send({ message: 'Forbidden access: You can only view your own records.' });
             }
@@ -138,7 +138,7 @@ async function run() {
             }
         });
 
-        // 6. PATCH /my-bills/:id (Update Paid Bill - SECURED)
+        // 6. (Update Paid Bill - SECURED)
         app.patch('/my-bills/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const { amount, address, phone, date } = req.body;
@@ -151,7 +151,7 @@ async function run() {
                     return res.status(403).send({ message: 'Forbidden access: You can only update your own records.' });
                 }
 
-                // Ensure data types are handled correctly (e.g., parsing date)
+                // Ensure data types are handled correctly 
                 const updateDoc = { $set: { amount, address, phone, date: new Date(date) } };
                 const result = await myBillsCollection.updateOne(query, updateDoc);
                 res.status(200).send({ message: 'Paid bill updated successfully.', modifiedCount: result.modifiedCount });
